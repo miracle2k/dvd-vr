@@ -1483,18 +1483,17 @@ int main(int argc, char** argv)
         struct tm tm;
         bool ts_ok = parse_pgtm(vvob->vob_timestamp,&tm);
         char vob_base[(sizeof(psi->title)*MB_LEN_MAX)+4/*#123*/+1/*NUL*/];
+        bool timestamp_fallback = false;
         bool name_found = false;
         if (STREQ(base_name, "[label]")) { //use the label to generate filename
             if (!psi) {
                 fprintf(stderr, "Error: Couldn't generate name based on label\n");
-                base_name = TIMESTAMP_FMT;
-                name_found = false;
+                timestamp_fallback = true;
             } else {
                 char* label_base = get_label_base(psi);
                 if (!label_base) {
                     fprintf(stderr, "Error: Couldn't generate name based on empty label\n");
-                    base_name = TIMESTAMP_FMT;
-                    name_found = false;
+                    timestamp_fallback = true;
                 } else {
                     unsigned int ret = snprintf(vob_base, sizeof(vob_base), "%s#%03d", label_base, program+1);
                     if (ret >= sizeof(vob_base)) { /* Shouldn't happen.  */
@@ -1506,23 +1505,21 @@ int main(int argc, char** argv)
                 free(label_base);
             }
         }
-        if (!name_found) {
-            if (STREQ(base_name, TIMESTAMP_FMT)) { //use timestamp to give unique filename
-                if (ts_ok) {
-                    strftime(vob_base,sizeof(vob_base),TIMESTAMP_FMT,&tm);
-                } else { //use now + program num to give unique name
-                    strftime(vob_base,sizeof(vob_base),TIMESTAMP_FMT,&now_tm);
-                    int datelen=strlen(vob_base);
-                    (void) snprintf(vob_base+datelen, sizeof(vob_base)-datelen, "#%03d", program+1);
-                }
+        if (timestamp_fallback || STREQ(base_name, TIMESTAMP_FMT)) {  //use timestamp to give unique filename
+            if (ts_ok) {
+                strftime(vob_base,sizeof(vob_base),TIMESTAMP_FMT,&tm);
+            } else { //use now + program num to give unique name
+                strftime(vob_base,sizeof(vob_base),TIMESTAMP_FMT,&now_tm);
+                int datelen=strlen(vob_base);
+                (void) snprintf(vob_base+datelen, sizeof(vob_base)-datelen, "#%03d", program+1);
             }
-            else {
-                unsigned int ret = snprintf(vob_base, sizeof(vob_base), "%s#%03d", base_name, program+1);
-                if (ret >= sizeof(vob_base)) {
-                    fprintf(stderr, "Error: Specified basename is too long (>%zu)\n", sizeof(vob_base)-4);
-                    exit(EXIT_FAILURE);
-                }
         }
+        else if (!name_found) {
+            unsigned int ret = snprintf(vob_base, sizeof(vob_base), "%s#%03d", base_name, program+1);
+            if (ret >= sizeof(vob_base)) {
+                fprintf(stderr, "Error: Specified basename is too long (>%zu)\n", sizeof(vob_base)-4);
+                exit(EXIT_FAILURE);
+            }
         }
 
         int vob_fd=-1;
